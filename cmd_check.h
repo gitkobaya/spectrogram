@@ -50,6 +50,7 @@ public:
 	int iGetNormalizeFlag() { return iNormalizeFlag; };
 	int iGetWriteMode()		{ return iWriteMode;};
 	int iGetWindowFlag()	{ return iWindowFlag;};
+	int iGetFilterFlag()	{ return iFilterFlag; };
 	double lfGetNoiseLevel() { return lfNoiseLevel; };
 	double* lfGetParam()		{ return alfWindowPara;};
 	const char* pcGetInFileName(){ return (const char*)accInFileName;};
@@ -59,6 +60,8 @@ public:
 
 	void vGetWindowFlag( char** pcWindow, int* piCmdLoc );
 	void vGetWindow( char* pcWindow );
+	void vGetFilterFlag(char** pcFilter, int* piCmdLoc);
+	void vGetFilter(char* pcFilter);
 	void vGetInFileName( char* pcInFileName );
 	void vGetOutFileName( char* pcOutFileName );
 	void vGetInDataType( char* pcDataType );
@@ -72,9 +75,11 @@ private:
 	int iSampling;
 	int iWriteMode;
 	int iWindowFlag;
+	int iFilterFlag;
 	double lfTimeInter;
 	double lfNoiseLevel;
 	char accWindow[256];
+	char accFilter[256];
 	char accInFileName[256];
 	char accOutFileName[256];
 	char accInDataType[256];

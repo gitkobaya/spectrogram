@@ -6,6 +6,7 @@
 #include "search_maxmin.h"
 #include "cmd_check.h"
 #include "csv.h"
+#include "iir.hpp"
 
 // グローバル変数
 
@@ -13,6 +14,7 @@
 // 関数プロトタイプ宣言
 extern void vSpectrogram( CCmdCheck cmd );
 extern void vSetWindowFunction( CCmdCheck cmd, double* plfWindowData );
+extern void vSetFilterFunction(CCmdCheck cmd, double* plfFilterReData, double *plfFilterImgData);
 
 int main( int argc, char* argv[] )
 {
@@ -21,6 +23,7 @@ int main( int argc, char* argv[] )
 	CCmdCheckException ccmde;
 
 	char acWindow[256];
+	char acFilter[256];
 	char acInFileName[256];
 	char acOutFileName[256];
 	char acInDataType[256];
@@ -28,6 +31,7 @@ int main( int argc, char* argv[] )
 
 	//初期化
 	memset( acWindow, 0, sizeof( acWindow ) );
+	memset( acFilter, 0, sizeof(acFilter));
 	memset( acInFileName, 0, sizeof( acInFileName ) );
 	memset( acOutFileName, 0, sizeof( acOutFileName ) );
 	memset( acInDataType, 0, sizeof( acInDataType ) );
@@ -40,6 +44,7 @@ int main( int argc, char* argv[] )
 
 		// コマンドラインから取得した値の設定
 		cmd.vGetWindow( acWindow );
+		cmd.vGetFilter( acFilter );
 		cmd.vGetInFileName( acInFileName );
 		cmd.vGetOutFileName( acOutFileName );
 		cmd.vGetInDataType( acInDataType );
@@ -115,9 +120,12 @@ void vSpectrogram( CCmdCheck cmd )
 	double *plfOriginData;
 	double *plfSinTable;
 	double *plfWindowTable;
+	double *plfFilterRe;
+	double *plfFilterImg;
 	int *piBitTable;
 	double lfData;
 	double lfNoiseLevel = -100;
+	double lfRe, lfImg;
 	char str[100];
 
 	CCsv CsvRead, CsvWrite;
@@ -146,6 +154,8 @@ void vSpectrogram( CCmdCheck cmd )
 		piBitTable = new int[cmd.iGetFrame()];
 		plfOriginData = new double[cmd.iGetFrame()];
 		plfWindowTable = new double[cmd.iGetFrame()];
+		plfFilterRe = new double[cmd.iGetFrame()];
+		plfFilterImg = new double[cmd.iGetFrame()];
 
 		for( i = 0 ;i < cmd.iGetFrame(); i++ )
 		{
@@ -156,6 +166,8 @@ void vSpectrogram( CCmdCheck cmd )
 			piBitTable[i] = 0.0;
 			plfOriginData[i] = 0.0;
 			plfWindowTable[i] = 0.0;
+			plfFilterRe[i] = 0.0;
+			plfFilterImg[i] = 0.0;
 		}
 	}
 	catch( std::bad_alloc ba )
@@ -171,6 +183,8 @@ void vSpectrogram( CCmdCheck cmd )
 	make_bittable( cmd.iGetFrame(), piBitTable );
 	// 窓関数用テーブルの作成
 	vSetWindowFunction( cmd, plfWindowTable );
+	// フィルタ用のテーブル作成
+	vSetFilterFunction(cmd, plfFilterRe, plfFilterImg );
 
 /* データ解析実行 */
 
@@ -194,7 +208,16 @@ void vSpectrogram( CCmdCheck cmd )
 		
 		// フーリエ変換実行
 		fft( cmd.iGetFrame(), plfSinTable, piBitTable, plfFreqX, plfFreqY );
-		
+
+		// フィルタをかける（LPF,HPF,BPF,BEF,APF,LowShelf,HighShelf,PeakingEQ,PEQ,GEQ）
+		// 実部と虚部の積を算出する。
+		for (j = 0; j < cmd.iGetFrame(); j++)
+		{
+			lfRe = plfFreqX[j]*plfFreqY[j] - plfFilterRe[j]*plfFilterImg[j];
+			lfImg = plfFreqX[j]*plfFilterImg[j] + plfFilterRe[j]*plfFreqY[j];
+			plfFreqX[j] = lfRe;
+			plfFreqY[j] = lfImg;
+		}
 		// 絶対値の最大値を取得。
 		if( cmd.iGetNormalizeFlag() == 1 )
 		{
@@ -410,5 +433,105 @@ void vSetWindowFunction( CCmdCheck cmd, double* plfWindowData )
 		{
 			plfWindowData[i] = akaike<double>( i, iFrame );
 		}
+	}
+}
+
+void vSetFilterFunction(CCmdCheck cmd, double* plfFilterReData, double *plfFilterImgData )
+{
+	int i;
+	int iFilterFlag;
+	int iFrame;
+	double lfParam;
+	double lfSf, lfFp, lfFs;
+	double lfFpl, lfFph, lfFsl, lfFsh;
+	double lfAp, lfAs, lfAb;
+
+	iFilterFlag = cmd.iGetFilterFlag();
+	iFrame = cmd.iGetFrame();
+
+	for (i = 0; i < iFrame; i++)
+	{
+		// フィルタをかけない。
+		if (iFilterFlag == 0)
+		{
+			plfFilterReData[i] = 1.0;
+			plfFilterImgData[i] = 0.0;
+		}
+		// ローパスフィルタ
+		else if (iFilterFlag == 1)
+		{
+			lfSf = cmd.iGetSampling();	// サンプリング周波数
+			lfFp = cmd.lfGetParam()[0];	// 通過域周波数（LPFの周波数）
+			lfFs = lfFp*1.5;			// 遮断域周波数
+			lfAp = 0.1;					// 通過域振幅値（1-の形式）
+			lfAs = 0.3;					// 遮断域振幅値 (そのまま)
+			lpf( eChebyshev, lfFp, lfFs, lfAp, lfAs, iFrame, lfSf, plfFilterReData, plfFilterImgData );
+		}
+		// ハイパスフィルタ
+		else if (iFilterFlag == 2)
+		{
+			lfSf = cmd.iGetSampling();	// サンプリング周波数
+			lfFs = cmd.lfGetParam()[0];	// 遮断域周波数（HPFの周波数）
+			lfFp = lfFs*1.5;			// 通過域周波数
+			lfAp = 0.2;					// 通過域振幅値（1-の形式）
+			lfAs = 0.1;					// 遮断域振幅値 (そのまま)
+			hpf(eChebyshev, lfFp, lfFs, lfAp, lfAs, iFrame, lfSf, plfFilterReData, plfFilterImgData);
+		}
+		// バンドパスフィルタ
+		else if (iFilterFlag == 3)
+		{
+			lfSf = cmd.iGetSampling();	// サンプリング周波数
+			lfFpl = cmd.lfGetParam()[0];// 通過域周波数（BPFの始め周波数）
+			lfFph = cmd.lfGetParam()[1];// 通過域周波数（BPFの終わり周波数）
+			lfFsl = lfFsl*0.5;			// 遮断域周波数 
+			lfFsh = lfFsh*1.5;			// 遮断域周波数
+			lfAp = 0.2;					// 通過域振幅値（1-の形式）
+			lfAs = 0.1;					// 遮断域振幅値 (そのまま)
+			bpf(eChebyshev, lfFpl, lfFsl, lfFph, lfFsh, lfAp, lfAs, iFrame, lfSf, plfFilterReData, plfFilterImgData);
+		}
+		// バンドエリミネイトフィルタ(ノッチフィルタ)
+		else if (iFilterFlag == 4)
+		{
+			lfSf = cmd.iGetSampling();	// サンプリング周波数
+			lfFsl = cmd.lfGetParam()[0];// 遮断域周波数（BEFの始め周波数）
+			lfFsh = cmd.lfGetParam()[1];// 遮断域周波数（BEFの終わり周波数）
+			lfFpl = lfFsl*0.5;			// 通過域周波数 
+			lfFph = lfFsh*1.5;			// 通過域周波数
+			lfAp = 0.2;					// 通過域振幅値（1-の形式）
+			lfAs = 0.1;					// 遮断域振幅値 (そのまま)
+			bef(eChebyshev, lfFpl, lfFsl, lfFph, lfFsh, lfAp, lfAs, iFrame, lfSf, plfFilterReData, plfFilterImgData);
+		}
+		// オールパスフィルタ
+		else if (iFilterFlag == 5)
+		{
+//			plfFilterData[i] = <double>(i, iFrame);
+		}
+#if 0
+		// ローシェルフ
+		else if (iFilterFlag == 6)
+		{
+			plfFilterData[i] = lowshelf<double>(i, iFrame, lfParam);
+		}
+		// ハイシェルフ
+		else if (iFilterFlag == 7)
+		{
+			plfFilterData[i] = kaiser<double>(i, iFrame, lfParam);
+		}
+		// ピーキングEQ
+		else if (iFilterFlag == 8)
+		{
+			plfFilterData[i] = gaussian<double>(i, iFrame, lfParam);
+		}
+		// パラメトリックイコライザ
+		else if (iFilterFlag == 9)
+		{
+			plfFilterData[i] = exponential<double>(i, iFrame, lfParam);
+		}
+		// GEQ
+		else if (iFilterFlag == 10)
+		{
+			plfFilterData[i] = flat_top<double>(i, iFrame);
+		}
+#endif
 	}
 }

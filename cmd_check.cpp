@@ -12,8 +12,10 @@ CCmdCheck::CCmdCheck()
 	iNormalizeFlag = 0;
 	iWriteMode = 1;
 	iWindowFlag = 0;
+	iFilterFlag = 0;
 	lfNoiseLevel = -100;
 	memset( accWindow, '\0', sizeof(accWindow) );
+	memset( accFilter, '\0', sizeof(accFilter));
 	memset( accInFileName, '\0', sizeof(accInFileName) );
 	memset( accOutFileName, '\0', sizeof(accOutFileName) );
 	memset( accInDataType, '\0', sizeof(accInDataType) );
@@ -31,7 +33,9 @@ CCmdCheck::~CCmdCheck()
 	lfTimeInter = 0;
 	iNormalizeFlag = 0;
 	iWindowFlag = 0;
+	iFilterFlag = 0;
 	memset( accWindow, '\0', sizeof(accWindow) );
+	memset( accFilter, '\0', sizeof(accFilter) );
 	memset( accInFileName, '\0', sizeof(accInFileName) );
 	memset( accOutFileName, '\0', sizeof(accOutFileName) );
 	memset( accInDataType, '\0', sizeof(accInDataType) );
@@ -119,6 +123,11 @@ void CCmdCheck::vCommandCheck( int argc, char* argv[] )
 		{
 			vGetWindowFlag( argv, &i );
 		}
+		/* フィルタ */
+		else if (strcmp(argv[i], "-filter") == 0)
+		{
+			vGetFilterFlag(argv, &i);
+		}
 		/* 入力ファイル */
 		else if( strcmp( argv[i], "-in" ) == 0 )
 		{
@@ -203,7 +212,8 @@ long CCmdCheck::lCommandErrorCheck( char* argv )
 		( strcmp( argv, "-in" ) == 0 )				||
 		( strcmp( argv, "-out" ) == 0 )				||
 		( strcmp( argv, "-normalize" ) == 0 )		||
-		( strcmp( argv, "-noiselevel") == 0 ))
+		( strcmp( argv, "-noiselevel") == 0 )		||
+		( strcmp( argv, "-filter") == 0 ))
 	{
 		lRet = 0;
 	}
@@ -364,6 +374,173 @@ void CCmdCheck::vGetWindow( char* pcWindow )
 	{
 		ccmde.SetErrorInfo( CCMD_ERROR_EXTEND_STRING, "CommandCheck", "vGetWindow", "配列サイズ超えて参照", __LINE__ );
 		throw( ccmde );
+	}
+}
+
+void CCmdCheck::vGetFilterFlag(char** pcFilter, int* piCmdLoc)
+{
+	long lRet = CCMD_SUCCESS;
+	CCmdCheckException ccmde;
+
+	lRet = lCommandErrorCheck(pcFilter[*piCmdLoc + 1]);
+	if (lRet == 0)
+	{
+		ccmde.SetErrorInfo(CCMD_ERROR_INVALID_FORMAT, "CommandCheck", "CCmdCheck", "コマンドフォーマットエラー", __LINE__);
+		throw(ccmde);
+	}
+
+	if (strcmp("normal", pcFilter[*piCmdLoc + 1]) == 0)
+	{
+		iFilterFlag = 0;
+		*piCmdLoc = *piCmdLoc + 1;
+	}
+	else if (strcmp("lpf", pcFilter[*piCmdLoc + 1]) == 0)
+	{
+		iFilterFlag = 1;
+		lRet = lCommandErrorCheck(pcFilter[*piCmdLoc + 2]);
+		if (lRet == 0)
+		{
+			ccmde.SetErrorInfo(CCMD_ERROR_INVALID_FORMAT, "CommandCheck", "CCmdCheck", "コマンドフォーマットエラー", __LINE__);
+			throw(ccmde);
+		}
+		alfWindowPara[0] = atof(pcFilter[*piCmdLoc + 2]);
+		*piCmdLoc = *piCmdLoc + 2;
+	}
+	else if (strcmp("hpf", pcFilter[*piCmdLoc + 1]) == 0)
+	{
+		iFilterFlag = 2;
+		lRet = lCommandErrorCheck(pcFilter[*piCmdLoc + 2]);
+		if (lRet == 0)
+		{
+			ccmde.SetErrorInfo(CCMD_ERROR_INVALID_FORMAT, "CommandCheck", "CCmdCheck", "コマンドフォーマットエラー", __LINE__);
+			throw(ccmde);
+		}
+		alfWindowPara[0] = atof(pcFilter[*piCmdLoc + 2]);
+		*piCmdLoc = *piCmdLoc + 2;
+	}
+	else if (strcmp("bpf", pcFilter[*piCmdLoc + 1]) == 0)
+	{
+		iFilterFlag = 3;
+		lRet = lCommandErrorCheck(pcFilter[*piCmdLoc + 2]);
+		if (lRet == 0)
+		{
+			ccmde.SetErrorInfo(CCMD_ERROR_INVALID_FORMAT, "CommandCheck", "CCmdCheck", "コマンドフォーマットエラー", __LINE__);
+			throw(ccmde);
+		}
+		alfWindowPara[0] = atof(pcFilter[*piCmdLoc + 2]);
+		alfWindowPara[1] = atof(pcFilter[*piCmdLoc + 3]);
+		*piCmdLoc = *piCmdLoc + 3;
+	}
+	else if (strcmp("bef", pcFilter[*piCmdLoc + 1]) == 0)
+	{
+		iFilterFlag = 4;
+		lRet = lCommandErrorCheck(pcFilter[*piCmdLoc + 2]);
+		if (lRet == 0)
+		{
+			ccmde.SetErrorInfo(CCMD_ERROR_INVALID_FORMAT, "CommandCheck", "CCmdCheck", "コマンドフォーマットエラー", __LINE__);
+			throw(ccmde);
+		}
+		alfWindowPara[0] = atof(pcFilter[*piCmdLoc + 2]);
+		alfWindowPara[1] = atof(pcFilter[*piCmdLoc + 3]);
+		*piCmdLoc = *piCmdLoc + 3;
+	}
+	else if (strcmp("apf", pcFilter[*piCmdLoc + 1]) == 0)
+	{
+		iFilterFlag = 5;
+		lRet = lCommandErrorCheck(pcFilter[*piCmdLoc + 2]);
+		if (lRet == 0)
+		{
+			ccmde.SetErrorInfo(CCMD_ERROR_INVALID_FORMAT, "CommandCheck", "CCmdCheck", "コマンドフォーマットエラー", __LINE__);
+			throw(ccmde);
+		}
+		alfWindowPara[0] = atof(pcFilter[*piCmdLoc + 2]);
+		*piCmdLoc = *piCmdLoc + 2;
+	}
+	else if (strcmp("lowshelf", pcFilter[*piCmdLoc + 1]) == 0)
+	{
+		iFilterFlag = 6;
+		lRet = lCommandErrorCheck(pcFilter[*piCmdLoc + 3]);
+		if (lRet == 0)
+		{
+			ccmde.SetErrorInfo(CCMD_ERROR_INVALID_FORMAT, "CommandCheck", "CCmdCheck", "コマンドフォーマットエラー", __LINE__);
+			throw(ccmde);
+		}
+		alfWindowPara[0] = atof(pcFilter[*piCmdLoc + 2]);
+		alfWindowPara[1] = atof(pcFilter[*piCmdLoc + 3]);
+		*piCmdLoc = *piCmdLoc + 3;
+	}
+	else if (strcmp("highshelf", pcFilter[*piCmdLoc + 1]) == 0)
+	{
+		iFilterFlag = 6;
+		lRet = lCommandErrorCheck(pcFilter[*piCmdLoc + 3]);
+		if (lRet == 0)
+		{
+			ccmde.SetErrorInfo(CCMD_ERROR_INVALID_FORMAT, "CommandCheck", "CCmdCheck", "コマンドフォーマットエラー", __LINE__);
+			throw(ccmde);
+		}
+		alfWindowPara[0] = atof(pcFilter[*piCmdLoc + 2]);
+		alfWindowPara[1] = atof(pcFilter[*piCmdLoc + 3]);
+		*piCmdLoc = *piCmdLoc + 3;
+	}
+	else if (strcmp("peakingEQ", pcFilter[*piCmdLoc + 1]) == 0)
+	{
+		iFilterFlag = 8;
+		lRet = lCommandErrorCheck(pcFilter[*piCmdLoc + 2]);
+		if (lRet == 0)
+		{
+			ccmde.SetErrorInfo(CCMD_ERROR_INVALID_FORMAT, "CommandCheck", "CCmdCheck", "コマンドフォーマットエラー", __LINE__);
+			throw(ccmde);
+		}
+		alfWindowPara[0] = atof(pcFilter[*piCmdLoc + 2]);
+		*piCmdLoc = *piCmdLoc + 2;
+	}
+	else if (strcmp("PEQ", pcFilter[*piCmdLoc + 1]) == 0)
+	{
+		iFilterFlag = 9;
+		lRet = lCommandErrorCheck(pcFilter[*piCmdLoc + 2]);
+		if (lRet == 0)
+		{
+			ccmde.SetErrorInfo(CCMD_ERROR_INVALID_FORMAT, "CommandCheck", "CCmdCheck", "コマンドフォーマットエラー", __LINE__);
+			throw(ccmde);
+		}
+		alfWindowPara[0] = atof(pcFilter[*piCmdLoc + 2]);
+		*piCmdLoc = *piCmdLoc + 2;
+	}
+	else if (strcmp("GEQ", pcFilter[*piCmdLoc + 1]) == 0)
+	{
+		iFilterFlag = 10;
+		lRet = lCommandErrorCheck(pcFilter[*piCmdLoc + 2]);
+		if (lRet == 0)
+		{
+			ccmde.SetErrorInfo(CCMD_ERROR_INVALID_FORMAT, "CommandCheck", "CCmdCheck", "コマンドフォーマットエラー", __LINE__);
+			throw(ccmde);
+		}
+		alfWindowPara[0] = atof(pcFilter[*piCmdLoc + 2]);
+		*piCmdLoc = *piCmdLoc + 2;
+	}
+	else
+	{
+		ccmde.SetErrorInfo(CCMD_ERROR_INVALID_WINDOW, "CommandCheck", "CCmdCheck", "不正な窓関数指定", __LINE__);
+		throw(ccmde);
+	}
+}
+
+void CCmdCheck::vGetFilter(char* pcFilter)
+{
+	CCmdCheckException ccmde;
+	if (pcFilter == NULL)
+	{
+		ccmde.SetErrorInfo(CCMD_ERROR_INVALID_DATA, "CommandCheck", "vGetWindow", "文字列取得用変数NULL", __LINE__);
+		throw(ccmde);
+	}
+	try
+	{
+		strcpy(pcFilter, accFilter);
+	}
+	catch (...)
+	{
+		ccmde.SetErrorInfo(CCMD_ERROR_EXTEND_STRING, "CommandCheck", "vGetWindow", "配列サイズ超えて参照", __LINE__);
+		throw(ccmde);
 	}
 }
 
